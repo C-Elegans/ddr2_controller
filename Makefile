@@ -1,7 +1,7 @@
 dump.vcd: a.out
 	vvp a.out
 
-a.out: controller.v controller_tb.v ddr2.v ddr2_mcp.v
+a.out: controller.v controller_tb.v ddr2.v ddr2_mcp.v ddrbank.v ODDR.v IOBUF.v
 	iverilog -DSIM -s controller_tb $^ 
 
 clean:

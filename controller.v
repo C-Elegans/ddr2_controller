@@ -7,11 +7,13 @@ module controller (/*AUTOARG*/
    // Inouts
    dm_rdqs, dq, dqs, dqs_n,
    // Inputs
-   clk, rst, c_addr, c_data_in, c_rd_req, c_wr_req, rdqs_n
+   clk, clk_90, rst, c_addr, c_data_in, c_rd_req, c_wr_req, rdqs_n
    );
 
 `include "ddr2_parameters.vh"
    input clk;
+   input clk_90;
+   
    input rst;
    
    input [25:0] c_addr;
@@ -122,15 +124,33 @@ module controller (/*AUTOARG*/
    assign cs_n = 0;
    
    assign c_rdy = state[8:3] == S_IDLE[8:3];
-   assign dm_rdqs = 2'b11;
+   assign dm_rdqs = 2'b00;
 
 
    reg 	      dqs_pre = 0;
    reg 	      dqs_en = 0;
 
-   assign dqs = dqs_en ? (dqs_pre ? 0 : clk) : 'bZ;
+   assign dqs = dqs_en ? (dqs_pre ? 0 : {ck,ck}) : 'bZ;
    assign dqs_n = dqs_en ? ~dqs : 'bZ;
    
+   
+   
+   reg [15:0] dq_out0 = 0;
+   reg [15:0] dq_out1 = 0;
+
+   reg 	      dq_oe = 0;
+   reg 	      dq_oe90 = 0;
+
+   always @(posedge clk_90)
+     dq_oe90 <= dq_oe;
+   
+
+   ddrbank dqbank (
+		   .d1(dq_out1),
+		   .d0(dq_out0),
+		   .io(dq),
+		   .clk(clk_90),
+		   .oe(dq_oe90));
    
    
    
@@ -157,6 +177,7 @@ module controller (/*AUTOARG*/
 	 c_ack <= 0;
 	 dqs_en <= 0;
 	 dqs_pre <= 0;
+	 dq_oe <= 0;
 	 
 	 case (state[8:3])
 	   S_INIT_0[8:3]: begin
@@ -342,27 +363,28 @@ module controller (/*AUTOARG*/
 	   
 	   S_WR1[8:3]:begin
 	      state <= S_WR2;
-	      dqs_en <= 1;
-	      dqs_pre <= 1;
 	      
 	   end
 	   
 
 	   S_WR2[8:3]: begin
 	     state <= S_WR3;
-	      dqs_pre <= 0;
-	      dqs_en <= 1;
-	      
 	      
 	   end
 	   S_WR3[8:3]: begin
 	      state <= S_WR4;
 	      dqs_en <= 1;
+	      dq_oe <= 1;
+	      dq_out0 <= c_data_in[63:48];
+	      dq_out1 <= c_data_in[47:32];
+	      
 	   end
 	   S_WR4[8:3]: begin
-	     state <= S_WR5;
+	      state <= S_WR5;
 	      dqs_en <= 1;
-	      dqs_pre <= 1;
+	      dq_oe <= 1;
+	      dq_out0 <= c_data_in[31:16];
+	      dq_out1 <= c_data_in[15:0];
 	      
 	   end
 	   

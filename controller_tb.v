@@ -8,6 +8,7 @@ module controller_tb;
    reg			c_rd_req;		// To controller of controller.v
    reg			c_wr_req;		// To controller of controller.v
    reg			clk;			// To controller of controller.v
+   reg			clk_90;			// To controller of controller.v
    reg			rst;			// To controller of controller.v
    // End of automatics
    /*AUTOWIRE*/
@@ -75,6 +76,7 @@ module controller_tb;
 			 .dqs_n			(dqs_n[DQS_BITS-1:0]),
 			 // Inputs
 			 .clk			(clk),
+			 .clk_90		(clk_90),
 			 .rst			(rst),
 			 .c_addr		(c_addr[25:0]),
 			 .c_data_in		(c_data_in[63:0]),
@@ -106,6 +108,11 @@ module controller_tb;
       c_data_in <= 64'hf00dbeefdeadfeed;
       @(posedge c_ack)
 	c_wr_req <= 0;
+      @(posedge c_rdy)
+	c_rd_req <= 1;
+      @(posedge c_ack)
+	c_rd_req <= 0;
+      
 		    
       
       
@@ -114,6 +121,11 @@ module controller_tb;
    
 
    always #(TCK_MIN/2) clk <= ~clk;
+
+   always @(posedge clk or negedge clk)
+     #(TCK_MIN/4) clk_90 <= clk;
+   
+      
    
    
       
