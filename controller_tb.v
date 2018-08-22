@@ -89,7 +89,7 @@ module controller_tb;
       #20 rst <= 0;
       
 
-      #(2000 * `NS) $finish;
+      #(3000 * `NS) $finish;
    end
 
    always #(TCK_MIN/2) clk <= ~clk;

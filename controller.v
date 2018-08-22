@@ -1,3 +1,4 @@
+`define CAS_LATENCY 5
 module controller (/*AUTOARG*/
    // Outputs
    c_data_out, c_rdy, ck, ck_n, cke, cs_n, ras_n, cas_n, we_n, ba,
@@ -62,6 +63,10 @@ module controller (/*AUTOARG*/
      S_INIT_8 = {6'b001000, cmd_pre},
      S_INIT_9 = {6'b001001, cmd_ref},
      S_INIT_10 = {6'b001010, cmd_ref},
+     S_INIT_11 = {6'b001011, cmd_load},
+     S_INIT_12 = {6'b001100, cmd_load},
+     S_INIT_13 = {6'b001101, cmd_load},
+     S_INIT_14 = {6'b001110, cmd_nop},
      S_IDLE   = {6'b001111, cmd_nop};
    
    
@@ -166,14 +171,45 @@ module controller (/*AUTOARG*/
 		counter <= TRFC_MIN/TCK_MIN;
 		state <= S_INIT_10;
 	     end
+	   S_INIT_10[8:3]:
+	     if(counter == 0) begin
+		counter <= TRFC_MIN/TCK_MIN;
+		state <= S_INIT_11;
+		ba <= 3'b000;
+		addr <= 12'b0;
+		addr[11:9] <= TWR/TCK_MIN;
+		addr[6:4] <= `CAS_LATENCY;
+		addr[2:0] <= 3'b010;
+	     end
+	   S_INIT_11[8:3]:
+	     if(counter == 0) begin
+		counter <= TMRD;
+		state <= S_INIT_12;
+		ba <= 3'b001;
+		addr <= 12'b0;
+		addr[9:7] <= 3'b111;
+	     end
+	   S_INIT_12[8:3]:
+	     if(counter == 0) begin
+		counter <= TMRD;
+		state <= S_INIT_13;
+		ba <= 3'b001;
+		addr <= 12'b0;
+		addr[9:7] <= 3'b000;
+	     end
+	   S_INIT_13[8:3]:
+	     if(counter == 0) begin
+		counter <= 200;
+		state <= S_INIT_14;
+	     end
+	   S_INIT_14[8:3]:
+	     if(counter == 0)
+	       state <= S_IDLE;
 	   
-	   
-			    
-	   
-	   
-	     
-		
-	   
+
+	   S_IDLE[8:3]: begin
+
+	   end
 
 	 endcase // case (state[8:3])
 	 
