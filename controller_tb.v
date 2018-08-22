@@ -1,6 +1,7 @@
 `timescale 1ps/1ps
 module controller_tb;
 `include "ddr2_parameters.vh"
+   `define period 7519
    /*AUTOREGINPUT*/
    // Beginning of automatic reg inputs (for undeclared instantiated-module inputs)
    reg [25:0]		c_addr;			// To controller of controller.v
@@ -93,7 +94,7 @@ module controller_tb;
       #20 rst <= 0;
       
 
-      #(3000 * `NS) $finish;
+      #(8000 * `NS) $finish;
    end
    initial begin
       #(2000 * `NS)
@@ -120,10 +121,10 @@ module controller_tb;
    end
    
 
-   always #(TCK_MIN/2) clk <= ~clk;
+   always #(`period/2) clk <= ~clk;
 
    always @(posedge clk or negedge clk)
-     #(TCK_MIN/4) clk_90 <= clk;
+     #(`period/4) clk_90 <= clk;
    
       
    

@@ -422,8 +422,12 @@ module controller (/*AUTOARG*/
 
 	   S_WR1[8:3]:
 	      state <= S_WR2;
-	   S_WR2[8:3]: 
+	   S_WR2[8:3]: begin
+	      dqs_en <= 1;
+	      dqs_pre <= 1;
 	     state <= S_WR3;
+	   end
+	   
 	      
 	   S_WR3[8:3]: begin
 	      state <= S_WR4;
