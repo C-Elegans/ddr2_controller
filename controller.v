@@ -1,4 +1,5 @@
 `define CAS_LATENCY 5
+`define period 7520
 module controller (/*AUTOARG*/
    // Outputs
    c_data_out, c_rdy, ck, ck_n, cke, cs_n, ras_n, cas_n, we_n, ba,
@@ -67,6 +68,8 @@ module controller (/*AUTOARG*/
      S_INIT_12 = {6'b001100, cmd_load},
      S_INIT_13 = {6'b001101, cmd_load},
      S_INIT_14 = {6'b001110, cmd_nop},
+     S_RF0 = {6'b100000, cmd_ref},
+     S_RF1 = {6'b100001, cmd_nop},
      S_IDLE   = {6'b001111, cmd_nop};
    
    
@@ -208,9 +211,21 @@ module controller (/*AUTOARG*/
 	   
 
 	   S_IDLE[8:3]: begin
-
+	      if(counter == 0)
+		state <= S_RF0;
+	   
 	   end
 
+	   S_RF0[8:3]: begin
+	      counter <= TRFC_MIN/`period;
+	      state <= S_RF1;
+	   end
+	   S_RF1[8:3]: 
+	      if(counter == 0) begin
+		 counter <= TRFC_MAX/`period;
+		 state <= S_IDLE;
+	      end
+	      
 	 endcase // case (state[8:3])
 	 
       end
