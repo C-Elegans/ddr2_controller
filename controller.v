@@ -2,8 +2,8 @@
 `define period 7520
 module controller (/*AUTOARG*/
    // Outputs
-   c_data_out, c_rdy, ck, ck_n, cke, cs_n, ras_n, cas_n, we_n, ba,
-   addr, odt,
+   c_data_out, c_rdy, c_ack, ck, ck_n, cke, cs_n, ras_n, cas_n, we_n,
+   ba, addr, odt,
    // Inouts
    dm_rdqs, dq, dqs, dqs_n,
    // Inputs
@@ -18,7 +18,7 @@ module controller (/*AUTOARG*/
    input [63:0] c_data_in;
    output [63:0] c_data_out;
    output 	 c_rdy;
-   output 	 c_ack;
+   output reg	 c_ack;
    input 	 c_rd_req;
    input 	 c_wr_req;
    
@@ -74,11 +74,29 @@ module controller (/*AUTOARG*/
      S_ACT0	= {6'b100010, cmd_act},
      S_ACT1	= {6'b100011, cmd_nop},
      S_ACT2	= {6'b100100, cmd_nop},
+
+     S_PRE0	= {6'b100101, cmd_pre},
+     S_PRE1	= {6'b100110, cmd_nop},
+     S_PRE2	= {6'b100111, cmd_nop},
+     S_PRE3	= {6'b101000, cmd_nop},
+
      S_RD0	= {6'b110100, cmd_rd},
      S_RD1	= {6'b110101, cmd_nop},
      S_RD2	= {6'b110110, cmd_nop},
      S_RD3	= {6'b110111, cmd_nop},
      S_RD4	= {6'b111000, cmd_nop},
+     S_RD5	= {6'b111001, cmd_nop},
+     S_RD6	= {6'b111010, cmd_nop},
+     S_RD7	= {6'b111011, cmd_nop},
+
+     S_WR0      = {6'b010000, cmd_wr},
+     S_WR1      = {6'b010001, cmd_nop},
+     S_WR2      = {6'b010010, cmd_nop},
+     S_WR3      = {6'b010011, cmd_nop},
+     S_WR4      = {6'b010100, cmd_nop},
+     S_WR5      = {6'b010101, cmd_nop},
+     S_WR6      = {6'b010110, cmd_nop},
+   
      S_IDLE	= {6'b001111, cmd_nop};
    
    
@@ -86,7 +104,7 @@ module controller (/*AUTOARG*/
    
 
 
-   reg [8:0] 
+   reg [8:0] //auto enum state 
 	     state = S_INIT_0;
 
    wire [8:3] //auto enum state
@@ -105,6 +123,15 @@ module controller (/*AUTOARG*/
    
    assign c_rdy = state[8:3] == S_IDLE[8:3];
    assign dm_rdqs = 2'b11;
+
+
+   reg 	      dqs_pre = 0;
+   reg 	      dqs_en = 0;
+
+   assign dqs = dqs_en ? (dqs_pre ? 0 : clk) : 'bZ;
+   assign dqs_n = dqs_en ? ~dqs : 'bZ;
+   
+   
    
    
    
@@ -127,6 +154,10 @@ module controller (/*AUTOARG*/
 	 if(counter != 0)
 	   counter <= counter - 1;
 	 state[2:0] <= cmd_nop;
+	 c_ack <= 0;
+	 dqs_en <= 0;
+	 dqs_pre <= 0;
+	 
 	 case (state[8:3])
 	   S_INIT_0[8:3]: begin
 	      counter <= (200*`US)/TCK_MIN; // 200 uS
@@ -266,10 +297,14 @@ module controller (/*AUTOARG*/
 	      if(c_rd_req) begin
 		 state <= S_RD0;
 		 addr <= cur_addr[9:0];
-		 
 	      end
+	      else if(c_wr_req) begin
+		 state <= S_WR0;
+		 addr <= cur_addr[9:0];
+	      end
+	   
 	      else
-		state <= S_IDLE;
+		state <= S_PRE0;
 	   S_RD0[8:3]:
 	     state <= S_RD1;
 	   S_RD1[8:3]:
@@ -279,7 +314,68 @@ module controller (/*AUTOARG*/
 	   S_RD3[8:3]:
 	     state <= S_RD4;
 	   S_RD4[8:3]:
-	     state <= S_RD4;
+	     state <= S_RD5;
+	   S_RD5[8:3]:
+	     state <= S_RD6;
+	   S_RD6[8:3]:
+	     state <= S_RD7;
+	   S_RD7[8:3]: begin
+	     state <= S_PRE0;
+	      c_ack <= 1;
+	      
+	   end
+	   
+	   S_PRE0[8:3]:
+	     state <= S_PRE1;
+	   S_PRE1[8:3]:
+	     state <= S_PRE2;
+	   S_PRE2[8:3]:
+	     state <= S_PRE3;
+	   S_PRE3[8:3]:
+	     state <= S_IDLE;
+	   
+	   S_WR0[8:3]: begin
+	      state <= S_WR1;
+	      c_ack <= 1;
+	      
+	   end
+	   
+	   S_WR1[8:3]:begin
+	      state <= S_WR2;
+	      dqs_en <= 1;
+	      dqs_pre <= 1;
+	      
+	   end
+	   
+
+	   S_WR2[8:3]: begin
+	     state <= S_WR3;
+	      dqs_pre <= 0;
+	      dqs_en <= 1;
+	      
+	      
+	   end
+	   S_WR3[8:3]: begin
+	      state <= S_WR4;
+	      dqs_en <= 1;
+	   end
+	   S_WR4[8:3]: begin
+	     state <= S_WR5;
+	      dqs_en <= 1;
+	      dqs_pre <= 1;
+	      
+	   end
+	   
+	   S_WR5[8:3]: begin
+	     state <= S_WR6;
+	   end
+	   
+	   S_WR6[8:3]:
+	     state <= S_PRE0;
+	   
+	   
+	   
+	   
 	   
  
 
@@ -306,17 +402,52 @@ module controller (/*AUTOARG*/
       endcase
    end
    // End of automatics
-   /*AUTOASCIIENUM("state_state", "state_ascii", "s_")*/
+   /*AUTOASCIIENUM("state", "state_ascii", "s_")*/
    // Beginning of automatic ASCII enum decoding
-   reg [47:0]		state_ascii;		// Decode of state_state
-   always @(state_state) begin
-      case ({state_state})
-	S_INIT_0: state_ascii = "init_0";
-	S_INIT_1: state_ascii = "init_1";
-	S_INIT_2: state_ascii = "init_2";
-	S_INIT_3: state_ascii = "init_3";
-	S_INIT_4: state_ascii = "init_4";
-	default:  state_ascii = "%Error";
+   reg [55:0]		state_ascii;		// Decode of state
+   always @(state) begin
+      case ({state})
+	S_INIT_0:  state_ascii = "init_0 ";
+	S_INIT_1:  state_ascii = "init_1 ";
+	S_INIT_2:  state_ascii = "init_2 ";
+	S_INIT_3:  state_ascii = "init_3 ";
+	S_INIT_4:  state_ascii = "init_4 ";
+	S_INIT_5:  state_ascii = "init_5 ";
+	S_INIT_6:  state_ascii = "init_6 ";
+	S_INIT_7:  state_ascii = "init_7 ";
+	S_INIT_8:  state_ascii = "init_8 ";
+	S_INIT_9:  state_ascii = "init_9 ";
+	S_INIT_10: state_ascii = "init_10";
+	S_INIT_11: state_ascii = "init_11";
+	S_INIT_12: state_ascii = "init_12";
+	S_INIT_13: state_ascii = "init_13";
+	S_INIT_14: state_ascii = "init_14";
+	S_RF0:     state_ascii = "rf0    ";
+	S_RF1:     state_ascii = "rf1    ";
+	S_ACT0:    state_ascii = "act0   ";
+	S_ACT1:    state_ascii = "act1   ";
+	S_ACT2:    state_ascii = "act2   ";
+	S_PRE0:    state_ascii = "pre0   ";
+	S_PRE1:    state_ascii = "pre1   ";
+	S_PRE2:    state_ascii = "pre2   ";
+	S_PRE3:    state_ascii = "pre3   ";
+	S_RD0:     state_ascii = "rd0    ";
+	S_RD1:     state_ascii = "rd1    ";
+	S_RD2:     state_ascii = "rd2    ";
+	S_RD3:     state_ascii = "rd3    ";
+	S_RD4:     state_ascii = "rd4    ";
+	S_RD5:     state_ascii = "rd5    ";
+	S_RD6:     state_ascii = "rd6    ";
+	S_RD7:     state_ascii = "rd7    ";
+	S_WR0:     state_ascii = "wr0    ";
+	S_WR1:     state_ascii = "wr1    ";
+	S_WR2:     state_ascii = "wr2    ";
+	S_WR3:     state_ascii = "wr3    ";
+	S_WR4:     state_ascii = "wr4    ";
+	S_WR5:     state_ascii = "wr5    ";
+	S_WR6:     state_ascii = "wr6    ";
+	S_IDLE:    state_ascii = "idle   ";
+	default:   state_ascii = "%Error ";
       endcase
    end
    // End of automatics

@@ -14,6 +14,7 @@ module controller_tb;
    // Beginning of automatic wires (for undeclared instantiated-module outputs)
    wire [ADDR_BITS-1:0]	addr;			// From controller of controller.v
    wire [BA_BITS-1:0]	ba;			// From controller of controller.v
+   wire			c_ack;			// From controller of controller.v
    wire [63:0]		c_data_out;		// From controller of controller.v
    wire			c_rdy;			// From controller of controller.v
    wire			cas_n;			// From controller of controller.v
@@ -56,6 +57,7 @@ module controller_tb;
 			 // Outputs
 			 .c_data_out		(c_data_out[63:0]),
 			 .c_rdy			(c_rdy),
+			 .c_ack			(c_ack),
 			 .ck			(ck),
 			 .ck_n			(ck_n),
 			 .cke			(cke[CS_BITS-1:0]),
@@ -95,6 +97,18 @@ module controller_tb;
       #(2000 * `NS)
       c_rd_req <= 1;
       c_addr <= 26'hdeadbeef;
+      c_data_in <= 64'hf00dbeefdeadfeed;
+      @(posedge c_ack)
+	c_rd_req <= 0;
+      @(posedge c_rdy)
+	c_wr_req <= 1;
+      c_addr <= 26'hdeadbeef;
+      c_data_in <= 64'hf00dbeefdeadfeed;
+      @(posedge c_ack)
+	c_wr_req <= 0;
+		    
+      
+      
       
    end
    
