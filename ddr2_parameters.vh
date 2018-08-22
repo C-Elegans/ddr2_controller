@@ -34,7 +34,7 @@
 `ifdef SIM
 `define US 1000
 `else
-`define US 1000000
+`define US 100000
 `endif
                                           // SYMBOL UNITS DESCRIPTION
                                           // ------ ----- -----------

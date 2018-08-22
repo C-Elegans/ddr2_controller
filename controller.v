@@ -22,8 +22,8 @@ module controller (/*AUTOARG*/
    
 
    // DRAM Signals
-   output reg   ck;
-   output reg   ck_n;
+   output   ck;
+   output   ck_n;
    output reg [CS_BITS-1:0] cke;
    output reg [CS_BITS-1:0] cs_n;
    output reg 		ras_n;
@@ -41,7 +41,7 @@ module controller (/*AUTOARG*/
    // ras, cas, we
    localparam // auto enum cmd
      cmd_load = 3'b000,
-     cmd_pre = 3'b001,
+     cmd_pre = 3'b010,
      cmd_act = 3'b011,
      cmd_wr  = 3'b100,
      cmd_rd  = 3'b101,
@@ -55,7 +55,16 @@ module controller (/*AUTOARG*/
      S_INIT_1 = {6'b000001, cmd_nop},
      S_INIT_2 = {6'b000010, cmd_nop},
      S_INIT_3 = {6'b000011, cmd_pre},
-     S_INIT_4 = {6'b000100, cmd_load};
+     S_INIT_4 = {6'b000100, cmd_load},
+     S_INIT_5 = {6'b000101, cmd_load},
+     S_INIT_6 = {6'b000110, cmd_load},
+     S_INIT_7 = {6'b000111, cmd_load},
+     S_INIT_8 = {6'b001000, cmd_pre},
+     S_INIT_9 = {6'b001001, cmd_ref},
+     S_INIT_10 = {6'b001010, cmd_ref},
+     S_IDLE   = {6'b001111, cmd_nop};
+   
+   
    
    
 
@@ -71,8 +80,11 @@ module controller (/*AUTOARG*/
    reg [15:0] counter = 0;
    
    
+   assign ck = ~clk;
+   assign ck_n = clk;
    
-   always @(posedge clk) begin
+   
+   always @(/*AS*/state) begin
       we_n <= state[0];
       cas_n <= state[1];
       ras_n <= state[2];
@@ -111,10 +123,53 @@ module controller (/*AUTOARG*/
 	   S_INIT_3[8:3]:
 	      if(counter == 0) begin
 		 state <= S_INIT_4;
-		ba <= 3'b010;
-		addr <= 12'b0;
-		addr[7] <= 1'b1;
+		 ba <= 3'b010;
+		 addr <= 12'b0;
+		 addr[7] <= 1'b1;
+		 counter <= TMRD;
 	      end
+	   S_INIT_4[8:3]:
+	     if(counter == 0) begin
+		ba <= 3'b011;
+		addr <= 12'b0;
+		counter <= TMRD;
+		state <= S_INIT_5;
+	     end
+	   S_INIT_5[8:3]:
+	     if(counter == 0) begin
+		ba <= 3'b001;
+		addr <= 12'b0;
+		counter <= TMRD;
+		state <= S_INIT_6;
+	     end
+	   S_INIT_6[8:3]:
+	     if(counter == 0) begin
+		ba <= 3'b0;
+		addr <= 12'b0;
+		addr[8] <= 1'b1;
+		counter <= TMRD;
+		state <= S_INIT_7;
+	     end
+	   S_INIT_7[8:3]:
+	     if(counter == 0) begin
+		addr[10] <= 1;
+		counter <= TMRD;
+		state <= S_INIT_8;
+	     end
+	   S_INIT_8[8:3]:
+	     if(counter == 0) begin
+		counter <= TRPA/TCK_MIN;
+		state <= S_INIT_9;
+	     end
+	   S_INIT_9[8:3]:
+	     if(counter == 0) begin
+		counter <= TRFC_MIN/TCK_MIN;
+		state <= S_INIT_10;
+	     end
+	   
+	   
+			    
+	   
 	   
 	     
 		
