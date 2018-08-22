@@ -18,6 +18,7 @@ module controller (/*AUTOARG*/
    input [63:0] c_data_in;
    output [63:0] c_data_out;
    output 	 c_rdy;
+   output 	 c_ack;
    input 	 c_rd_req;
    input 	 c_wr_req;
    
@@ -27,7 +28,7 @@ module controller (/*AUTOARG*/
    output   ck;
    output   ck_n;
    output reg [CS_BITS-1:0] cke;
-   output reg [CS_BITS-1:0] cs_n;
+   output [CS_BITS-1:0] cs_n;
    output reg 		ras_n;
    output reg 		cas_n;
    output reg 		we_n;
@@ -53,24 +54,32 @@ module controller (/*AUTOARG*/
  
 
    localparam [8:0] //auto enum state
-     S_INIT_0 = {6'b000000, cmd_nop},
-     S_INIT_1 = {6'b000001, cmd_nop},
-     S_INIT_2 = {6'b000010, cmd_nop},
-     S_INIT_3 = {6'b000011, cmd_pre},
-     S_INIT_4 = {6'b000100, cmd_load},
-     S_INIT_5 = {6'b000101, cmd_load},
-     S_INIT_6 = {6'b000110, cmd_load},
-     S_INIT_7 = {6'b000111, cmd_load},
-     S_INIT_8 = {6'b001000, cmd_pre},
-     S_INIT_9 = {6'b001001, cmd_ref},
-     S_INIT_10 = {6'b001010, cmd_ref},
-     S_INIT_11 = {6'b001011, cmd_load},
-     S_INIT_12 = {6'b001100, cmd_load},
-     S_INIT_13 = {6'b001101, cmd_load},
-     S_INIT_14 = {6'b001110, cmd_nop},
-     S_RF0 = {6'b100000, cmd_ref},
-     S_RF1 = {6'b100001, cmd_nop},
-     S_IDLE   = {6'b001111, cmd_nop};
+     S_INIT_0	= {6'b000000, cmd_nop},
+     S_INIT_1	= {6'b000001, cmd_nop},
+     S_INIT_2	= {6'b000010, cmd_nop},
+     S_INIT_3	= {6'b000011, cmd_pre},
+     S_INIT_4	= {6'b000100, cmd_load},
+     S_INIT_5	= {6'b000101, cmd_load},
+     S_INIT_6	= {6'b000110, cmd_load},
+     S_INIT_7	= {6'b000111, cmd_load},
+     S_INIT_8	= {6'b001000, cmd_pre},
+     S_INIT_9	= {6'b001001, cmd_ref},
+     S_INIT_10	= {6'b001010, cmd_ref},
+     S_INIT_11	= {6'b001011, cmd_load},
+     S_INIT_12	= {6'b001100, cmd_load},
+     S_INIT_13	= {6'b001101, cmd_load},
+     S_INIT_14	= {6'b001110, cmd_nop},
+     S_RF0	= {6'b100000, cmd_ref},
+     S_RF1	= {6'b100001, cmd_nop},
+     S_ACT0	= {6'b100010, cmd_act},
+     S_ACT1	= {6'b100011, cmd_nop},
+     S_ACT2	= {6'b100100, cmd_nop},
+     S_RD0	= {6'b110100, cmd_rd},
+     S_RD1	= {6'b110101, cmd_nop},
+     S_RD2	= {6'b110110, cmd_nop},
+     S_RD3	= {6'b110111, cmd_nop},
+     S_RD4	= {6'b111000, cmd_nop},
+     S_IDLE	= {6'b001111, cmd_nop};
    
    
    
@@ -86,10 +95,18 @@ module controller (/*AUTOARG*/
 	      state_cmd = state[2:0];
    
    reg [15:0] counter = 0;
+   reg [25:0] cur_addr = 0;
+   
    
    
    assign ck = ~clk;
    assign ck_n = clk;
+   assign cs_n = 0;
+   
+   assign c_rdy = state[8:3] == S_IDLE[8:3];
+   assign dm_rdqs = 2'b11;
+   
+   
    
    
    always @(/*AS*/state) begin
@@ -127,6 +144,9 @@ module controller (/*AUTOARG*/
 	     if(counter == 0) begin
 		state <= S_INIT_3;
 		counter <= TRPA/TCK_MIN;
+		addr <= 0;
+		addr[10] <= 1'b1;
+		
 	     end
 	   S_INIT_3[8:3]:
 	      if(counter == 0) begin
@@ -155,18 +175,21 @@ module controller (/*AUTOARG*/
 		ba <= 3'b0;
 		addr <= 12'b0;
 		addr[8] <= 1'b1;
+		addr[11:9] <= TWR/TCK_MIN;
+		addr[6:4] <= `CAS_LATENCY;
+		addr[2:0] <= 3'b010;
 		counter <= TMRD;
 		state <= S_INIT_7;
 	     end
 	   S_INIT_7[8:3]:
 	     if(counter == 0) begin
 		addr[10] <= 1;
-		counter <= TMRD;
+		counter <= TRPA/TCK_MIN + 1;
 		state <= S_INIT_8;
 	     end
 	   S_INIT_8[8:3]:
 	     if(counter == 0) begin
-		counter <= TRPA/TCK_MIN;
+		counter <= TRFC_MIN/TCK_MIN;
 		state <= S_INIT_9;
 	     end
 	   S_INIT_9[8:3]:
@@ -206,14 +229,24 @@ module controller (/*AUTOARG*/
 		state <= S_INIT_14;
 	     end
 	   S_INIT_14[8:3]:
-	     if(counter == 0)
-	       state <= S_IDLE;
+	     if(counter == 0) begin
+		state <= S_IDLE;
+		counter <= TRFC_MAX/`period;
+	     end
+	   
 	   
 
 	   S_IDLE[8:3]: begin
 	      if(counter == 0)
 		state <= S_RF0;
-	   
+	      if(c_rd_req || c_wr_req) begin
+		 state <= S_ACT0;
+		 addr <= c_addr[25:13];
+		 ba <= c_addr[12:10];
+		 cur_addr <= c_addr;
+		 
+	      end
+	      
 	   end
 
 	   S_RF0[8:3]: begin
@@ -225,6 +258,32 @@ module controller (/*AUTOARG*/
 		 counter <= TRFC_MAX/`period;
 		 state <= S_IDLE;
 	      end
+	   S_ACT0[8:3]:
+	     state <= S_ACT1;
+	   S_ACT1[8:3]:
+	     state <= S_ACT2;
+	   S_ACT2[8:3]:
+	      if(c_rd_req) begin
+		 state <= S_RD0;
+		 addr <= cur_addr[9:0];
+		 
+	      end
+	      else
+		state <= S_IDLE;
+	   S_RD0[8:3]:
+	     state <= S_RD1;
+	   S_RD1[8:3]:
+	     state <= S_RD2;
+	   S_RD2[8:3]:
+	     state <= S_RD3;
+	   S_RD3[8:3]:
+	     state <= S_RD4;
+	   S_RD4[8:3]:
+	     state <= S_RD4;
+	   
+ 
+
+	   
 	      
 	 endcase // case (state[8:3])
 	 

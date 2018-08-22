@@ -91,6 +91,13 @@ module controller_tb;
 
       #(3000 * `NS) $finish;
    end
+   initial begin
+      #(2000 * `NS)
+      c_rd_req <= 1;
+      c_addr <= 26'hdeadbeef;
+      
+   end
+   
 
    always #(TCK_MIN/2) clk <= ~clk;
    
