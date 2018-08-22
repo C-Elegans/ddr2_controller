@@ -118,6 +118,9 @@ module controller (/*AUTOARG*/
    
    reg [15:0] counter = 0;
    reg [25:0] cur_addr = 0;
+
+   reg [63:0] data_in = 0;
+   
    
    
    
@@ -187,6 +190,11 @@ module controller (/*AUTOARG*/
 	 dq_oe <= 0;
 	 
 	 case (state[8:3])
+
+	   // Begin initializing the ram. The initialization can be
+	   // found on page 88 of the micron MT47H64M16 datasheet
+
+	   // Begin by holding CKE low for 200us (less in simulation)
 	   S_INIT_0[8:3]: begin
 	      counter <= (200*`US)/TCK_MIN; // 200 uS
 	      state <= S_INIT_1;
@@ -194,12 +202,16 @@ module controller (/*AUTOARG*/
 	      
 	   end
 	   S_INIT_1[8:3]: 
+
+	     // At the end of 200uS, bring CKE High and wait 400ns
 	      if(counter == 0) begin
 		 cke <= 1;
 		 counter <= (400*`NS)/TCK_MIN;
 		 state <= S_INIT_2;
 	      end
 	   S_INIT_2[8:3]:
+
+	     // Next, issue a precharge all command 
 	     if(counter == 0) begin
 		state <= S_INIT_3;
 		counter <= TRPA/TCK_MIN;
@@ -208,6 +220,8 @@ module controller (/*AUTOARG*/
 		
 	     end
 	   S_INIT_3[8:3]:
+
+	     // Issue a load mode command to EMR2, set self refresh rate to 1x
 	      if(counter == 0) begin
 		 state <= S_INIT_4;
 		 ba <= 3'b010;
@@ -216,6 +230,7 @@ module controller (/*AUTOARG*/
 		 counter <= TMRD;
 	      end
 	   S_INIT_4[8:3]:
+	     // Issue a load mode command to EMR3, set to 0
 	     if(counter == 0) begin
 		ba <= 3'b011;
 		addr <= 12'b0;
@@ -223,6 +238,8 @@ module controller (/*AUTOARG*/
 		state <= S_INIT_5;
 	     end
 	   S_INIT_5[8:3]:
+
+	     // Issue a load mode command to EMR1, again, set to 0 (Enable the DLL)
 	     if(counter == 0) begin
 		ba <= 3'b001;
 		addr <= 12'b0;
@@ -230,33 +247,44 @@ module controller (/*AUTOARG*/
 		state <= S_INIT_6;
 	     end
 	   S_INIT_6[8:3]:
+
+	     // Issue a load mode command to MR, reset the DLL 
 	     if(counter == 0) begin
 		ba <= 3'b0;
 		addr <= 12'b0;
-		addr[8] <= 1'b1;
-		addr[11:9] <= TWR/TCK_MIN;
-		addr[6:4] <= `CAS_LATENCY;
-		addr[2:0] <= 3'b010;
-		counter <= TMRD;
+		addr[8] <= 1'b1; // DLL reset
+		addr[11:9] <= TWR/TCK_MIN; // Set write recovery time (not used)
+		addr[6:4] <= `CAS_LATENCY; // Set CAS latency
+		addr[2:0] <= 3'b010;	   // Set burst length to 4
+		counter <= TMRD;	   
 		state <= S_INIT_7;
 	     end
 	   S_INIT_7[8:3]:
+
+	     // Issue a precharge all command
 	     if(counter == 0) begin
 		addr[10] <= 1;
 		counter <= TRPA/TCK_MIN + 1;
 		state <= S_INIT_8;
 	     end
+
 	   S_INIT_8[8:3]:
+
+	     // Issue a refresh command
 	     if(counter == 0) begin
 		counter <= TRFC_MIN/TCK_MIN;
 		state <= S_INIT_9;
 	     end
 	   S_INIT_9[8:3]:
+
+	     // Issue a refresh command
 	     if(counter == 0) begin
 		counter <= TRFC_MIN/TCK_MIN;
 		state <= S_INIT_10;
 	     end
 	   S_INIT_10[8:3]:
+
+	     // Load the MR again
 	     if(counter == 0) begin
 		counter <= TRFC_MIN/TCK_MIN;
 		state <= S_INIT_11;
@@ -267,6 +295,8 @@ module controller (/*AUTOARG*/
 		addr[2:0] <= 3'b010;
 	     end
 	   S_INIT_11[8:3]:
+
+	     // Load EMR1, enabling OCD Default
 	     if(counter == 0) begin
 		counter <= TMRD;
 		state <= S_INIT_12;
@@ -275,6 +305,8 @@ module controller (/*AUTOARG*/
 		addr[9:7] <= 3'b111;
 	     end
 	   S_INIT_12[8:3]:
+
+	     // Load EMR1, enabling OCD Exit
 	     if(counter == 0) begin
 		counter <= TMRD;
 		state <= S_INIT_13;
@@ -283,6 +315,8 @@ module controller (/*AUTOARG*/
 		addr[9:7] <= 3'b000;
 	     end
 	   S_INIT_13[8:3]:
+
+	     // Wait for the DLL to lock
 	     if(counter == 0) begin
 		counter <= 200;
 		state <= S_INIT_14;
@@ -290,14 +324,17 @@ module controller (/*AUTOARG*/
 	   S_INIT_14[8:3]:
 	     if(counter == 0) begin
 		state <= S_IDLE;
+		// Set up the refresh counter
 		counter <= TRFC_MAX/`period;
 	     end
 	   
 	   
 
 	   S_IDLE[8:3]: begin
+	      // If a refresh is pending, do that first
 	      if(counter == 0)
 		state <= S_RF0;
+	      // If a read or write is requested, activate the row
 	      if(c_rd_req || c_wr_req) begin
 		 state <= S_ACT0;
 		 addr <= c_addr[25:13];
@@ -308,6 +345,7 @@ module controller (/*AUTOARG*/
 	      
 	   end
 
+	   // Issue a refresh command then wait for TRFC_MIN
 	   S_RF0[8:3]: begin
 	      counter <= TRFC_MIN/`period;
 	      state <= S_RF1;
@@ -317,15 +355,20 @@ module controller (/*AUTOARG*/
 		 counter <= TRFC_MAX/`period;
 		 state <= S_IDLE;
 	      end
+
+	   
+	   // Activate the row and wait
 	   S_ACT0[8:3]:
 	     state <= S_ACT1;
 	   S_ACT1[8:3]:
 	     state <= S_ACT2;
 	   S_ACT2[8:3]:
+	     // If there's a read pending, issue the read and set up the address
 	      if(c_rd_req) begin
 		 state <= S_RD0;
 		 addr <= cur_addr[9:0];
 	      end
+	   // If there's a write pending, issue the read and set up the address
 	      else if(c_wr_req) begin
 		 state <= S_WR0;
 		 addr <= cur_addr[9:0];
@@ -333,6 +376,7 @@ module controller (/*AUTOARG*/
 	   
 	      else
 		state <= S_PRE0;
+
 	   S_RD0[8:3]:
 	     state <= S_RD1;
 	   S_RD1[8:3]:
@@ -345,6 +389,7 @@ module controller (/*AUTOARG*/
 	     state <= S_RD5;
 	   S_RD5[8:3]:
 	     state <= S_RD6;
+	   // Read the data from the input ddr register and output it to the waiting device
 	   S_RD6[8:3]: begin
 	     state <= S_RD7;
 	      c_data_out[63:32] <= {dq_in1, dq_in0};
@@ -353,11 +398,12 @@ module controller (/*AUTOARG*/
 	   
 	   S_RD7[8:3]: begin
 	     state <= S_PRE0;
-	      c_ack <= 1;
+	      c_ack <= 1;	// Signal that the data is valid
 	      c_data_out[31:0] <= {dq_in1, dq_in0};
-	      
 	   end
+
 	   
+	   // Precharge the data
 	   S_PRE0[8:3]:
 	     state <= S_PRE1;
 	   S_PRE1[8:3]:
@@ -368,47 +414,49 @@ module controller (/*AUTOARG*/
 	     state <= S_IDLE;
 	   
 	   S_WR0[8:3]: begin
+	      // Acknowledge the write and save the data input
 	      state <= S_WR1;
 	      c_ack <= 1;
-	      
+	      data_in <= c_data_in;
 	   end
-	   
-	   S_WR1[8:3]:begin
-	      state <= S_WR2;
-	      
-	   end
-	   
 
-	   S_WR2[8:3]: begin
+	   S_WR1[8:3]:
+	      state <= S_WR2;
+	   S_WR2[8:3]: 
 	     state <= S_WR3;
 	      
-	   end
 	   S_WR3[8:3]: begin
 	      state <= S_WR4;
+	      // Output DQS and send the data to the output ddr
 	      dqs_en <= 1;
 	      dq_oe <= 1;
-	      dq_out0 <= c_data_in[63:48];
-	      dq_out1 <= c_data_in[47:32];
+	      dq_out0 <= data_in[63:48];
+	      dq_out1 <= data_in[47:32];
 	      
 	   end
 	   S_WR4[8:3]: begin
 	      state <= S_WR5;
+	      // Keep DQS on and send the data to the output ddr
 	      dqs_en <= 1;
 	      dq_oe <= 1;
-	      dq_out0 <= c_data_in[31:16];
-	      dq_out1 <= c_data_in[15:0];
+	      dq_out0 <= data_in[31:16];
+	      dq_out1 <= data_in[15:0];
 	      
 	   end
 	   
 	   S_WR5[8:3]: begin
+	      dqs_en <= 1;
+	      dqs_pre <= 1;
 	     state <= S_WR6;
 	   end
 	   
+	   // Wait for tWR
 	   S_WR6[8:3]:
 	     state <= S_WR7;
 	   S_WR7[8:3]:
 	     state <= S_WR8;
 	   S_WR8[8:3]:
+	     // Issue a precharge
 	     state <= S_PRE0;
 	   
 	   
@@ -484,6 +532,8 @@ module controller (/*AUTOARG*/
 	S_WR4:     state_ascii = "wr4    ";
 	S_WR5:     state_ascii = "wr5    ";
 	S_WR6:     state_ascii = "wr6    ";
+	S_WR7:     state_ascii = "wr7    ";
+	S_WR8:     state_ascii = "wr8    ";
 	S_IDLE:    state_ascii = "idle   ";
 	default:   state_ascii = "%Error ";
       endcase
