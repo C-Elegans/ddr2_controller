@@ -18,7 +18,7 @@ module controller (/*AUTOARG*/
    
    input [25:0] c_addr;
    input [63:0] c_data_in;
-   output [63:0] c_data_out;
+   output reg [63:0] c_data_out;
    output 	 c_rdy;
    output reg	 c_ack;
    input 	 c_rd_req;
@@ -98,6 +98,8 @@ module controller (/*AUTOARG*/
      S_WR4      = {6'b010100, cmd_nop},
      S_WR5      = {6'b010101, cmd_nop},
      S_WR6      = {6'b010110, cmd_nop},
+     S_WR7      = {6'b010111, cmd_nop},
+     S_WR8      = {6'b011000, cmd_nop},
    
      S_IDLE	= {6'b001111, cmd_nop};
    
@@ -138,6 +140,9 @@ module controller (/*AUTOARG*/
    reg [15:0] dq_out0 = 0;
    reg [15:0] dq_out1 = 0;
 
+   wire [15:0] dq_in0, dq_in1;
+   
+
    reg 	      dq_oe = 0;
    reg 	      dq_oe90 = 0;
 
@@ -148,6 +153,8 @@ module controller (/*AUTOARG*/
    ddrbank dqbank (
 		   .d1(dq_out1),
 		   .d0(dq_out0),
+		   .o0(dq_in0),
+		   .o1(dq_in1),
 		   .io(dq),
 		   .clk(clk_90),
 		   .oe(dq_oe90));
@@ -338,11 +345,16 @@ module controller (/*AUTOARG*/
 	     state <= S_RD5;
 	   S_RD5[8:3]:
 	     state <= S_RD6;
-	   S_RD6[8:3]:
+	   S_RD6[8:3]: begin
 	     state <= S_RD7;
+	      c_data_out[63:32] <= {dq_in1, dq_in0};
+	      
+	   end
+	   
 	   S_RD7[8:3]: begin
 	     state <= S_PRE0;
 	      c_ack <= 1;
+	      c_data_out[31:0] <= {dq_in1, dq_in0};
 	      
 	   end
 	   
@@ -393,6 +405,10 @@ module controller (/*AUTOARG*/
 	   end
 	   
 	   S_WR6[8:3]:
+	     state <= S_WR7;
+	   S_WR7[8:3]:
+	     state <= S_WR8;
+	   S_WR8[8:3]:
 	     state <= S_PRE0;
 	   
 	   

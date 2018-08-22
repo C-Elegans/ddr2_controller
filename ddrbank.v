@@ -25,7 +25,9 @@ module ddrbank(/*AUTOARG*/
    genvar 		  i;
    for(i=0; i<BANK_WIDTH; i=i+1) begin : genoddr
       
-      ODDR oddr(
+      ODDR #(
+	     .DDR_CLK_EDGE("SAME_EDGE")
+	     )oddr(
 		// Outputs
 		.Q				(oddr[i]),
 		// Inputs
@@ -40,6 +42,19 @@ module ddrbank(/*AUTOARG*/
 		  .O (iddr[i]),
 		  .T(oe),
 		  .IO(io[i]));
+      IDDR #(
+	     .DDR_CLK_EDGE("SAME_EDGE")
+	     )iddr(
+		.Q1(o0[i]),
+		.Q2(o1[i]),
+
+		.C(clk),
+		.CE(1'b1),
+		.D(iddr[i]),
+		.R(1'b0),
+		.S(1'b0));
+      
+	 
       
    end // block: genoddr
    
