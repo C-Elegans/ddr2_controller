@@ -1,4 +1,4 @@
-#Stupid Simple DDR2 controller
+# Stupid Simple DDR2 controller
 This will allow you to use your DDR2 Ram Module with fairly poor performance(70.9MB/s read and 66.5MB/s write). But at least you get a working controller.In some sense, the problem is not the lack of DDR2 controllers - but their poor portability. 
 The sheer complexitity of available controllers such as Xinlinx's MIG, and burdensome documenatation - not to mention a lack of a working test bench makes development with that tool difficult. 
 ## Portability
@@ -11,7 +11,7 @@ To be honest, none of these IP sources seem to use any Xilinx specific code, so 
 * Initialization
 * Read
 * Write
-##Organization
+## Organization
 * ./doc contains documenatation
 * ./rtl contains the rtl sources
 * ./simulate contains the makefile and the testbench
