@@ -1,6 +1,25 @@
-# More Info Later
-Initialization is complete
-
+#Stupid Simple DDR2 controller
+This will allow you to use your DDR2 Ram Module with fairly poor performance(70.9MB/s read and 66.5MB/s write). But at least you get a working controller.In some sense, the problem is not the lack of DDR2 controllers - but their poor portability. 
+The sheer complexitity of available controllers such as Xinlinx's MIG, and burdensome documenatation - not to mention a lack of a working test bench makes development with that tool difficult. 
+## Portability
+Xilinx's controller uses some Xilinx primitives. Since this controller originally targeted a Xilinx board, this repo uses the following three Xilinx primitives contained in ./rtl/IP:
+To be honest, none of these IP sources seem to use any Xilinx specific code, so I imagine they might synthesize on non-Xilinx boards. If not, just replace them.
+* IDDR.v (for implementing a Dual Data Rate muxer that can deliver data on both edges of a clock)
+* ODDR.v (for implementing a Dual Data Rate demuxer that can deliver data on both edges of a clock )
+* IOBUF.v (Xilinx IP implementation of a tristate that should work on Xilinx boards)
+## What Works
+* Initialization
+* Read
+* Write
+##Organization
+* ./doc contains documenatation
+* ./rtl contains the rtl sources
+* ./simulate contains the makefile and the testbench
+* ./synthesize contains the synthesizeable testbench
+## Simulation
+cd simulate
+make
+gtkwave dump.vcd
 ## Usage 
 The user visible interface is as follows:
 ```
@@ -33,4 +52,4 @@ address on `c_addr` and some data on `c_data_in` and raise
 `c_wr_req` can be deasserted.
 
 ## Internals
-![State machine diagram](statemachine.png)
+![State machine diagram](./doc/statemachine.png)
