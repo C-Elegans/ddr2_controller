@@ -52,6 +52,11 @@ To perfom a write, first wait until `c_rdy` is high, then place an
 address on `c_addr` and some data on `c_data_in` and raise
 `c_wr_req`. When `c_ack` is asserted the write has been serviced and
 `c_wr_req` can be deasserted.
-
+## References
+Datasheet included in ./docs
+* Initialization pg. 87
+* Activate pd. 90
+* Read pg. 92
+* Write pg. 103
 ## Internals
 ![State machine diagram](./doc/statemachine.png)
