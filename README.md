@@ -17,9 +17,11 @@ To be honest, none of these IP sources seem to use any Xilinx specific code, so 
 * ./simulate contains the makefile and the testbench
 * ./synthesize contains the synthesizeable testbench
 ## Simulation
+```
 cd simulate
 make
 gtkwave dump.vcd
+```
 ## Usage 
 The user visible interface is as follows:
 ```
