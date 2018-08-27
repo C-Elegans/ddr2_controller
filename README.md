@@ -11,6 +11,8 @@ To be honest, none of these IP sources seem to use any Xilinx specific code, so 
 * Initialization
 * Read
 * Write
+
+### NOTE: None of this has been tested on hardware. USE AT YOUR OWN RISK
 ## Organization
 * ./doc contains documenatation
 * ./rtl contains the rtl sources
